@@ -347,6 +347,18 @@ go run ./cmd/verify -scenario work
 
 Yêu cầu: Docker, Go ≥ 1.22, Node.js ≥ 20.9 (cho web). Mọi lệnh chạy từ thư mục gốc dự án. Xóa sạch để chạy lại: `docker compose down -v` và `rm -rf logs`.
 
+### Triển khai trên VPS và CI/CD
+
+Bản trình diễn chạy trên một VPS Ubuntu dùng chung với các dịch vụ khác:
+
+| Thành phần | Cách chạy trên VPS | Mở ra Internet |
+|---|---|---|
+| RabbitMQ | Docker Compose, mật khẩu ngẫu nhiên trong `.env` (không có trên git) | Không (chỉ `127.0.0.1`) |
+| Academic, Dashboard API, 3 Finance Worker, 4 subscriber | pm2, file chạy Go build sẵn; pm2 tự chạy lại tiến trình chết | Không (chỉ `127.0.0.1`) |
+| Trang web Next.js | pm2, bản build tự chứa | Có, một cổng duy nhất |
+
+Quy trình CI/CD (GitHub Actions, `.github/workflows/deploy.yml`): mỗi lần push lên `main` → chạy kiểm thử (`make test`) → đóng gói bản build trên máy chủ của GitHub (`make release`) → chép sang VPS qua SSH → `scripts/deploy-remote.sh` thay bản build, khởi động lại đúng các tiến trình của dự án bằng pm2 và kiểm tra trang web, Dashboard đã phản hồi. Bản build được làm trên máy chủ của GitHub thay vì trên VPS để không chiếm RAM của các dịch vụ khác đang chạy chung. Vì trang công khai, Dashboard giới hạn mỗi lần gửi tối đa 50 sự kiện và 30 lần gửi mỗi phút.
+
 ### Cách thu thập minh chứng
 
 - **Terminal:** mỗi dòng log có giờ đến micro giây, `event_id` và tên tiến trình.

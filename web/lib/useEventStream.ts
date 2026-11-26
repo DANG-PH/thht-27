@@ -42,7 +42,9 @@ export function useEventStream(apiBase: string) {
   const [state, dispatch] = useReducer(reducer, { conn: "connecting", records: [], queues: [] });
 
   useEffect(() => {
-    const es = new EventSource(`${apiBase}/api/stream`);
+    let es: EventSource | undefined;
+    let closed = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
     // Gom các bản ghi tới dồn dập rồi cập nhật giao diện một lần, tránh vẽ lại liên tục.
     let pending: EvRecord[] = [];
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -54,25 +56,39 @@ export function useEventStream(apiBase: string) {
     };
     const data = (e: Event) => JSON.parse((e as MessageEvent<string>).data);
 
-    es.onopen = () => dispatch({ type: "conn", conn: "open" });
-    es.onerror = () => dispatch({ type: "conn", conn: "error" }); // EventSource tự kết nối lại
-    es.addEventListener("snapshot", (e) => {
-      pending = [];
-      dispatch({ type: "snapshot", records: data(e) as EvRecord[] });
-    });
-    es.addEventListener("record", (e) => {
-      pending.push(data(e) as EvRecord);
-      if (!timer) timer = setTimeout(flush, 80);
-    });
-    es.addEventListener("reset", () => {
-      pending = [];
-      dispatch({ type: "reset" });
-    });
-    es.addEventListener("queues", (e) => dispatch({ type: "queues", payload: data(e) as QueuesPayload }));
+    const connect = () => {
+      const src = new EventSource(`${apiBase}/api/stream`);
+      es = src;
+      src.onopen = () => dispatch({ type: "conn", conn: "open" });
+      src.onerror = () => {
+        dispatch({ type: "conn", conn: "error" });
+        // Lỗi mạng: EventSource tự thử lại. Nhưng nếu server trả lỗi HTTP (vd đang deploy lại),
+        // EventSource đóng hẳn → tự mở kết nối mới sau 3 giây.
+        if (src.readyState === EventSource.CLOSED && !closed) {
+          retry = setTimeout(connect, 3000);
+        }
+      };
+      src.addEventListener("snapshot", (e) => {
+        pending = [];
+        dispatch({ type: "snapshot", records: data(e) as EvRecord[] });
+      });
+      src.addEventListener("record", (e) => {
+        pending.push(data(e) as EvRecord);
+        if (!timer) timer = setTimeout(flush, 80);
+      });
+      src.addEventListener("reset", () => {
+        pending = [];
+        dispatch({ type: "reset" });
+      });
+      src.addEventListener("queues", (e) => dispatch({ type: "queues", payload: data(e) as QueuesPayload }));
+    };
+    connect();
 
     return () => {
-      es.close();
+      closed = true;
+      es?.close();
       if (timer) clearTimeout(timer);
+      if (retry) clearTimeout(retry);
     };
   }, [apiBase]);
 

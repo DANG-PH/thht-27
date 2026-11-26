@@ -8,7 +8,8 @@ import { SendPanel } from "@/components/SendPanel";
 import { WorkBoard } from "@/components/WorkBoard";
 import { useEventStream } from "@/lib/useEventStream";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8080";
+// Mặc định gọi /api/... trên chính trang web; Next.js chuyển tiếp sang Dashboard API (app/api/*/route.ts).
+const API = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 const CONN_TEXT = {
   connecting: "Đang kết nối Dashboard API…",
@@ -44,8 +45,8 @@ export default function Dashboard() {
       <CampusMap records={records} />
       <EventFeed records={records} />
       <footer className="foot">
-        Dữ liệu giả lập · Trình duyệt chỉ nói chuyện với Dashboard API ({API}); Dashboard đọc logs/*.jsonl và RabbitMQ
-        Management API.
+        Dữ liệu giả lập · Trình duyệt không kết nối RabbitMQ: trang web chuyển tiếp /api sang Dashboard API, Dashboard đọc
+        logs/*.jsonl và RabbitMQ Management API.
       </footer>
     </main>
   );

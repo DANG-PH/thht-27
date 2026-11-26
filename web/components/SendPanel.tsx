@@ -34,7 +34,7 @@ export function SendPanel({ api }: { api: string }) {
         setResult(data as SendResult);
       }
     } catch (e) {
-      setError(`Không gọi được Dashboard API tại ${api}: ${String(e)}`);
+      setError(`Không gọi được ${api || ""}/api/send: ${String(e)}`);
     } finally {
       setBusy(false);
     }

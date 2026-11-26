@@ -131,6 +131,36 @@ go run ./cmd/verify -scenario pubsub
 
 Thêm subscriber mới: chạy `go run ./cmd/game-sub` rồi gửi lại. Subscriber mới chỉ nhận sự kiện gửi **sau khi** nó tạo queue; `verify` của lần gửi trước đó hiện ✗ ở cột game – đúng thiết kế Pub/Sub.
 
+## Triển khai lên VPS (pm2) và CI/CD
+
+Trên VPS, các chương trình Go và web chạy bằng **pm2** (namespace `thht27`, mọi app có tiền tố `thht27-`), RabbitMQ chạy bằng Docker. Chỉ trang web mở ra ngoài (cổng `3027`); RabbitMQ, Academic và Dashboard API chỉ lắng nghe trong máy (`127.0.0.1`).
+
+```
+Internet ──► :3027 thht27-web (Next.js) ──/api──► 127.0.0.1:18028 thht27-dashboard ──► 127.0.0.1:18027 thht27-academic
+                                                                                    └─► RabbitMQ 127.0.0.1:5672 ◄── 7 worker/subscriber
+```
+
+**Không build trên VPS.** VPS dùng chung RAM với nhiều dịch vụ khác, nên mọi thứ được build sẵn (`make release`: file chạy Go cho Linux amd64 + web Next.js dạng tự chứa) rồi chép sang; VPS không cần cài Go hay chạy `npm install`.
+
+| Cách | Lệnh |
+|---|---|
+| Deploy thủ công từ máy cá nhân | `make deploy VPS=root@<ip>` (dùng khóa `~/.ssh/id_ed25519_vps`) |
+| Tự động (CI/CD) | Push lên `main` → GitHub Actions chạy `make test`, `make release`, chép `release.tar.gz` sang VPS, chạy `scripts/deploy-remote.sh` |
+
+CI/CD cần khai báo secrets trong repo GitHub (**Settings → Secrets and variables → Actions**): `VPS_HOST`, `VPS_SSH_KEY` (khóa riêng tư đã được VPS chấp nhận); tùy chọn `VPS_USER` (mặc định `root`), `VPS_PORT` (22), `VPS_APP_PATH` (`/root/thht-27`). Chưa có secrets thì job deploy tự bỏ qua.
+
+Lần deploy đầu tiên, `scripts/deploy-remote.sh` tạo file `.env` trên VPS với mật khẩu RabbitMQ ngẫu nhiên. File này nằm trong `.gitignore`; quy trình deploy chỉ `git reset --hard`, **không** `git clean`, nên `.env` được giữ nguyên.
+
+Thao tác trình diễn trên VPS (sau khi `ssh` vào):
+
+| Muốn cho thấy | Lệnh |
+|---|---|
+| Trạng thái các tiến trình | `pm2 ls` |
+| Subscriber tạm tắt rồi bật lại | `pm2 stop thht27-notification` … `pm2 start thht27-notification` |
+| Worker chết khi đang xử lý | Gửi 12 sự kiện kịch bản (i) trên web, ngay sau đó `pm2 sendSignal SIGKILL thht27-W1` (pm2 tự bật lại W1 sau 3 giây) |
+| Xem log một tiến trình | `pm2 logs thht27-W2` |
+| Trang quản trị RabbitMQ | Trên máy cá nhân: `ssh -L 15672:127.0.0.1:15672 root@<ip>`, rồi mở http://localhost:15672 (tài khoản trong `/root/thht-27/.env`) |
+
 ## Kiểm thử tự động (T1–T9)
 
 ```bash

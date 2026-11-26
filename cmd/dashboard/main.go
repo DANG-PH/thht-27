@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -39,6 +40,8 @@ func main() {
 	academicURL := flag.String("academic", envOr("ACADEMIC_URL", "http://127.0.0.1:8081"), "địa chỉ Academic (chạy với -serve)")
 	mgmtURL := flag.String("mgmt", envOr("MGMT_URL", "http://127.0.0.1:15672"), "địa chỉ RabbitMQ Management API")
 	allowOrigin := flag.String("allow-origin", "*", "giá trị header Access-Control-Allow-Origin cho trang web")
+	maxN := flag.Int("max-n", 200, "số sự kiện tối đa cho mỗi lần gửi từ trang web")
+	perMinute := flag.Int("send-per-minute", 0, "số lần gửi tối đa mỗi phút cho toàn trang (0 = không giới hạn); bật khi trang công khai")
 	flag.Parse()
 	mgmtUser, mgmtPass := envOr("MGMT_USER", "demo"), envOr("MGMT_PASS", "demo")
 
@@ -56,6 +59,8 @@ func main() {
 		hub:         h,
 		academicURL: strings.TrimRight(*academicURL, "/"),
 		client:      &http.Client{Timeout: 60 * time.Second},
+		maxN:        *maxN,
+		limit:       newLimiter(*perMinute),
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/stream", s.stream)
@@ -90,6 +95,8 @@ type server struct {
 	hub         *hub
 	academicURL string
 	client      *http.Client
+	maxN        int
+	limit       *limiter
 }
 
 // stream giữ kết nối mở và đẩy sự kiện xuống trình duyệt theo chuẩn Server-Sent Events.
@@ -148,6 +155,21 @@ func (s *server) send(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, 4096))
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	var payload struct {
+		N int `json:"n"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "body JSON không hợp lệ"})
+		return
+	}
+	if payload.N > s.maxN {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("mỗi lần gửi tối đa %d sự kiện", s.maxN)})
+		return
+	}
+	if !s.limit.allow() {
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "gửi quá nhiều lần, chờ vài giây rồi thử lại"})
 		return
 	}
 	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, s.academicURL+"/api/enroll", bytes.NewReader(body))

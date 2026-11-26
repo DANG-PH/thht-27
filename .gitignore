@@ -2,6 +2,18 @@
 logs/
 bin/
 .run/
+
+# Cấu hình bí mật trên VPS (mật khẩu RabbitMQ...). Phải nằm trong .gitignore để
+# `git reset --hard` khi deploy không ghi đè hay xóa mất.
+.env
+
+# Sản phẩm build và deploy
+.release/
+.release-new/
+.deploy-tmp/
+release.tar.gz
+web-dist/
+
 web/node_modules/
 web/.next/
 web/next-env.d.ts
