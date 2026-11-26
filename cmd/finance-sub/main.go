@@ -9,9 +9,8 @@ import (
 
 	"nmtht/chude07/internal/consumer"
 	"nmtht/chude07/internal/event"
+	"nmtht/chude07/internal/tuition"
 )
-
-const donGiaTinChi = 450_000 // VND / tín chỉ – số liệu giả lập
 
 func main() {
 	err := consumer.Run(consumer.Options{
@@ -21,7 +20,7 @@ func main() {
 	}, func(ev event.StudentEnrolled) error {
 		// ĐỔI: nghiệp vụ của ứng dụng. Trả về nil = xử lý xong, thông điệp được ack.
 		log.Printf("  ghi nhận nghĩa vụ học phí: SV %s – %s, %d TC = %d đ",
-			ev.StudentID, ev.CourseID, ev.Credits, ev.Credits*donGiaTinChi)
+			ev.StudentID, ev.CourseID, ev.Credits, tuition.Fee(ev.Credits))
 		return nil
 	})
 	if err != nil {

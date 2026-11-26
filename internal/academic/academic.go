@@ -23,6 +23,7 @@ import (
 	"nmtht/chude07/internal/event"
 	"nmtht/chude07/internal/evidence"
 	"nmtht/chude07/internal/mq"
+	"nmtht/chude07/internal/tuition"
 )
 
 // MaxPerRequest giới hạn số sự kiện mỗi lần gửi, tránh bấm nhầm gửi quá nhiều từ trang web.
@@ -43,6 +44,49 @@ type Request struct {
 	N        int           `json:"n"`    // số sự kiện; 0 = gửi hết dữ liệu giả lập
 	Bad      bool          `json:"bad"`  // gửi thêm 1 thông điệp sai hợp đồng
 	Interval time.Duration `json:"-"`    // nghỉ giữa 2 lần gửi (chỉ dùng ở dòng lệnh)
+
+	// Có cả hai → gửi đúng MỘT lượt đăng ký này (người dùng chọn trên cổng đăng ký), bỏ qua N.
+	StudentID string `json:"student_id,omitempty"`
+	CourseID  string `json:"course_id,omitempty"`
+	// Chỉ gửi 1 thông điệp sai hợp đồng, không kèm sự kiện hợp lệ nào.
+	BadOnly bool `json:"bad_only,omitempty"`
+}
+
+// Student, Course, Catalog: danh mục rút ra từ dữ liệu giả lập, để cổng đăng ký trên web hiển thị.
+type Student struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type Course struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Credits int    `json:"credits"`
+	Fee     int    `json:"fee"` // học phí theo quy tắc chung (internal/tuition)
+}
+
+type Catalog struct {
+	Semester       string    `json:"semester"`
+	PricePerCredit int       `json:"price_per_credit"`
+	Students       []Student `json:"students"`
+	Courses        []Course  `json:"courses"`
+}
+
+func buildCatalog(rows []Enrollment) Catalog {
+	c := Catalog{PricePerCredit: tuition.PerCredit, Students: []Student{}, Courses: []Course{}}
+	seenS, seenC := map[string]bool{}, map[string]bool{}
+	for _, r := range rows {
+		c.Semester = r.Semester
+		if !seenS[r.StudentID] {
+			seenS[r.StudentID] = true
+			c.Students = append(c.Students, Student{ID: r.StudentID, Name: r.FullName})
+		}
+		if !seenC[r.CourseID] {
+			seenC[r.CourseID] = true
+			c.Courses = append(c.Courses, Course{ID: r.CourseID, Name: r.CourseName, Credits: r.Credits, Fee: tuition.Fee(r.Credits)})
+		}
+	}
+	return c
 }
 
 // Result trả về mã lần gửi và các event ID đã được broker xác nhận.
@@ -60,14 +104,29 @@ type Sender struct {
 	evlog *evidence.Log
 	rows  []Enrollment
 	next  int // dòng dữ liệu tiếp theo: mỗi lần gửi lấy các sinh viên kế tiếp
+
+	catalog  Catalog
+	students map[string]Student
+	courses  map[string]Course
 }
 
 func NewSender(pub *mq.Publisher, evlog *evidence.Log, rows []Enrollment) (*Sender, error) {
 	if len(rows) == 0 {
 		return nil, errors.New("không có dữ liệu giả lập")
 	}
-	return &Sender{pub: pub, evlog: evlog, rows: rows}, nil
+	s := &Sender{pub: pub, evlog: evlog, rows: rows, catalog: buildCatalog(rows),
+		students: map[string]Student{}, courses: map[string]Course{}}
+	for _, st := range s.catalog.Students {
+		s.students[st.ID] = st
+	}
+	for _, c := range s.catalog.Courses {
+		s.courses[c.ID] = c
+	}
+	return s, nil
 }
+
+// Catalog trả về danh mục sinh viên và học phần (chỉ đọc).
+func (s *Sender) Catalog() Catalog { return s.catalog }
 
 // Send phát req.N sự kiện student.enrolled theo kịch bản req.Mode.
 // Nếu lỗi giữa chừng, Result vẫn chứa các sự kiện đã gửi thành công trước đó.
@@ -95,20 +154,37 @@ func (s *Sender) Send(ctx context.Context, req Request) (Result, error) {
 		return Result{}, err
 	}
 
-	count := req.N
-	if count <= 0 {
-		count = len(s.rows)
-	}
-	if count > MaxPerRequest {
-		return Result{}, fmt.Errorf("%w: mỗi lần gửi tối đa %d sự kiện", ErrInvalidRequest, MaxPerRequest)
+	// Chọn các lượt đăng ký sẽ gửi.
+	var batch []Enrollment
+	switch {
+	case req.BadOnly:
+		// không gửi sự kiện hợp lệ nào
+	case req.StudentID != "" || req.CourseID != "":
+		st, okS := s.students[req.StudentID]
+		co, okC := s.courses[req.CourseID]
+		if !okS || !okC {
+			return Result{}, fmt.Errorf("%w: không có sinh viên %q hoặc học phần %q", ErrInvalidRequest, req.StudentID, req.CourseID)
+		}
+		batch = []Enrollment{{StudentID: st.ID, FullName: st.Name, CourseID: co.ID, CourseName: co.Name,
+			Credits: co.Credits, Semester: s.catalog.Semester}}
+	default:
+		count := req.N
+		if count <= 0 {
+			count = len(s.rows)
+		}
+		if count > MaxPerRequest {
+			return Result{}, fmt.Errorf("%w: mỗi lần gửi tối đa %d sự kiện", ErrInvalidRequest, MaxPerRequest)
+		}
+		for i := 0; i < count; i++ {
+			batch = append(batch, s.rows[s.next%len(s.rows)])
+			s.next++
+		}
 	}
 
 	res := Result{Run: newRunID(), Mode: req.Mode, Target: target, EventIDs: []string{}}
-	log.Printf("lần gửi %s: %d sự kiện → %s", res.Run, count, target)
+	log.Printf("lần gửi %s: %d sự kiện → %s", res.Run, len(batch), target)
 
-	for i := 0; i < count; i++ {
-		row := s.rows[s.next%len(s.rows)]
-		s.next++
+	for i, row := range batch {
 		ev := event.StudentEnrolled{
 			EventID:    fmt.Sprintf("ev-%s-%03d", res.Run, i+1),
 			EventType:  event.TypeStudentEnrolled,
@@ -131,7 +207,7 @@ func (s *Sender) Send(ctx context.Context, req Request) (Result, error) {
 		res.EventIDs = append(res.EventIDs, ev.EventID)
 		log.Printf("↑ %s  SV %s  %s (%d TC) – broker đã xác nhận", ev.EventID, ev.StudentID, ev.CourseID, ev.Credits)
 
-		if req.Interval > 0 && i < count-1 {
+		if req.Interval > 0 && i < len(batch)-1 {
 			select {
 			case <-ctx.Done():
 				return res, ctx.Err()
@@ -140,7 +216,7 @@ func (s *Sender) Send(ctx context.Context, req Request) (Result, error) {
 		}
 	}
 
-	if req.Bad {
+	if req.Bad || req.BadOnly {
 		id := fmt.Sprintf("ev-%s-bad", res.Run)
 		// Thiếu student_id, course_id và số tín chỉ âm: vi phạm hợp đồng thông điệp.
 		body := []byte(fmt.Sprintf(`{"event_id":%q,"event_type":%q,"credits":-1}`, id, event.TypeStudentEnrolled))

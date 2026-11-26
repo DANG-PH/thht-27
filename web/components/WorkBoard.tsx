@@ -1,6 +1,5 @@
 import { latestRun, trailsOfRun } from "@/lib/derive";
-import type { EvRecord, QueueInfo } from "@/lib/types";
-import { QueueStats } from "./QueueStats";
+import type { EvRecord } from "@/lib/types";
 
 type ChipState = "done" | "working" | "moved" | "rejected" | "retry" | "dlq";
 
@@ -22,7 +21,7 @@ const STATE_TEXT: Record<ChipState, string> = {
 };
 
 /** Kịch bản (i): một queue finance.work, nhiều Finance Worker. Mỗi worker là một làn. */
-export function WorkBoard({ records, queues }: { records: EvRecord[]; queues: Map<string, QueueInfo> }) {
+export function WorkBoard({ records }: { records: EvRecord[] }) {
   const run = latestRun(records, "work");
   const trails = run ? trailsOfRun(records, "work", run) : [];
 
@@ -73,13 +72,12 @@ export function WorkBoard({ records, queues }: { records: EvRecord[]; queues: Ma
   return (
     <section className="card">
       <header className="card-head">
-        <h2>(i) Message Queue</h2>
+        <h3>Mỗi worker một làn – lần gửi gần nhất</h3>
         <p className="hint">
-          Một queue, nhiều Finance Worker chia tải. Mỗi thông điệp chỉ tới <b>một</b> worker. Worker chết trước khi ack
-          thì RabbitMQ giao lại thông điệp cho worker khác (↻).
+          Mỗi ô là một sự kiện. Cùng một sự kiện chỉ được <b>xong</b> ở một làn; ô bị gạch là worker chết trước khi ack, sự
+          kiện đó hiện lại ở làn khác với dấu ↻.
         </p>
       </header>
-      <QueueStats name="finance.work" q={queues.get("finance.work")} />
       {run ? (
         <p className="runline">
           <span>

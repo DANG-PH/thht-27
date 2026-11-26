@@ -96,14 +96,18 @@ cd web && npm run dev              # mở http://localhost:3000
 
 Trên trang web, chọn kịch bản rồi bấm **Academic: gửi student.enrolled**. Các tình huống để trình bày:
 
+Trang web gồm: **sơ đồ luồng** có gói tin chạy theo nhật ký thật; **cổng đăng ký** (danh mục học phần có giá, bấm "Đăng ký" như đặt mua); các ứng dụng phía nhận – **hóa đơn học phí** (Finance), **hộp thư sinh viên** (Notification), **thống kê** (Analytics), **bản đồ trường** (Game); cuối trang là **bằng chứng kỹ thuật** (làn worker, ma trận, nhật ký) cùng quy tắc với `cmd/verify`.
+
 | Muốn cho thấy | Thao tác | Quan sát trên web |
 |---|---|---|
-| Chia tải | Kịch bản (i), gửi 12 | Mỗi worker một làn, mỗi ô sự kiện chỉ ở một làn, nhãn ĐẠT |
-| Worker chết khi chưa ack | Kịch bản (i), gửi 12, ngay sau đó `scripts/stop.sh -9 W1` | Ô của W1 bị gạch, cùng sự kiện hiện ở làn khác với `↻` |
-| Bản sao cho mọi subscriber | Kịch bản (ii), gửi 6 | Ma trận toàn ✓ |
-| Subscriber tạm tắt | `scripts/stop.sh notification`, gửi 6 | Thẻ Notification "đang tắt", Ready = 6, cột ✗; `scripts/start-all.sh` → chuyển ✓ |
-| Thông điệp sai hợp đồng | Tick "Kèm 1 thông điệp sai hợp đồng" | Ô đỏ `bad`, số Dead-letter ở góc phải tăng |
-| Thêm subscriber | Game đã chạy; trên bản đồ trường có nhân vật | Code Academic không đổi (`git log --stat` commit thêm `cmd/game-sub`) |
+| Chia tải | Tab (i), bấm "12 lượt" | Gói tin từ `finance.work` chia cho 3 worker; mỗi hóa đơn ghi worker nào lập |
+| Worker chết khi chưa ack | Tab (i), "12 lượt", ngay sau đó `scripts/stop.sh -9 W1` | Ô W1 chuyển "dừng? #… đã chuyển cho W…"; gói tin vàng ↻; ở bằng chứng, ô của W1 bị gạch |
+| Bản sao cho mọi subscriber | Tab (ii), "6 lượt" | Mỗi sự kiện tách thành 4 gói tin; hóa đơn, hộp thư, thống kê, bản đồ cùng cập nhật |
+| Subscriber tạm tắt | `scripts/stop.sh notification`, rồi gửi | Ô Notification nét đứt "ĐANG TẮT", Ready của queue tăng, hộp thư báo số thông báo đang chờ; `scripts/start-all.sh` → nhận đủ |
+| Thông điệp sai hợp đồng | Bấm "Gửi thông điệp lỗi" | Gói tin đỏ chạy vào `academic.dead-letter`, số Dead-letter ở góc phải tăng |
+| Thêm subscriber | Game đã chạy | Có queue `game.events` và bản đồ trường; commit thêm `cmd/game-sub` không đổi file nào của Academic |
+
+Số Ready / Unacked / Consumer lấy từ RabbitMQ Management API nên chậm hơn vài giây so với gói tin và số "đã xử lý" (lấy từ nhật ký).
 
 Dừng tất cả: `scripts/stop.sh`. Sau khi khởi động lại RabbitMQ, chạy lại `scripts/stop.sh && scripts/start-all.sh` vì các tiến trình không tự kết nối lại.
 

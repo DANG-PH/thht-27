@@ -13,9 +13,8 @@ import (
 	"nmtht/chude07/internal/consumer"
 	"nmtht/chude07/internal/event"
 	"nmtht/chude07/internal/mq"
+	"nmtht/chude07/internal/tuition"
 )
-
-const donGiaTinChi = 450_000 // VND / tín chỉ – số liệu giả lập
 
 func main() {
 	id := flag.String("id", "W1", "tên worker, vd W1, W2, W3")
@@ -38,7 +37,7 @@ func main() {
 		}
 		time.Sleep(*delay)
 		log.Printf("  tạo khoản học phí: SV %s – %s, %d TC × %d = %d đ",
-			ev.StudentID, ev.CourseID, ev.Credits, donGiaTinChi, ev.Credits*donGiaTinChi)
+			ev.StudentID, ev.CourseID, ev.Credits, tuition.PerCredit, tuition.Fee(ev.Credits))
 		return nil
 	})
 	if err != nil {

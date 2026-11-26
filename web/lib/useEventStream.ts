@@ -13,6 +13,9 @@ interface State {
   records: EvRecord[];
   queues: QueueInfo[];
   queuesError?: string;
+  // Tăng mỗi khi nhận lại toàn bộ lịch sử (snapshot/reset): sơ đồ luồng dựa vào đây để chỉ
+  // vẽ gói tin chạy cho bản ghi MỚI, không vẽ lại cả lịch sử.
+  version: number;
 }
 
 type Action =
@@ -28,18 +31,18 @@ function reducer(state: State, action: Action): State {
       return { ...state, conn: action.conn };
     case "snapshot":
       // Mỗi lần (kết nối lại) server gửi toàn bộ lịch sử → thay hẳn, không bị trùng.
-      return { ...state, records: action.records.slice(-MAX_RECORDS) };
+      return { ...state, records: action.records.slice(-MAX_RECORDS), version: state.version + 1 };
     case "records":
       return { ...state, records: [...state.records, ...action.records].slice(-MAX_RECORDS) };
     case "reset":
-      return { ...state, records: [] };
+      return { ...state, records: [], version: state.version + 1 };
     case "queues":
       return { ...state, queues: action.payload.queues ?? [], queuesError: action.payload.error };
   }
 }
 
 export function useEventStream(apiBase: string) {
-  const [state, dispatch] = useReducer(reducer, { conn: "connecting", records: [], queues: [] });
+  const [state, dispatch] = useReducer(reducer, { conn: "connecting", records: [], queues: [], version: 0 });
 
   useEffect(() => {
     let es: EventSource | undefined;

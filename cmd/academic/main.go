@@ -103,6 +103,9 @@ func serveHTTP(ctx context.Context, addr string, sender *academic.Sender) error 
 			writeJSON(w, http.StatusOK, res)
 		}
 	})
+	mux.HandleFunc("GET /api/catalog", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, sender.Catalog())
+	})
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})

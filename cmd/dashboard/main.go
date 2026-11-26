@@ -66,6 +66,7 @@ func main() {
 	mux.HandleFunc("GET /api/stream", s.stream)
 	mux.HandleFunc("GET /api/queues", s.queues)
 	mux.HandleFunc("POST /api/send", s.send)
+	mux.HandleFunc("GET /api/catalog", s.catalog)
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
@@ -183,6 +184,24 @@ func (s *server) send(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadGateway, map[string]string{
 			"error": "không gọi được Academic tại " + s.academicURL + " – đã chạy `go run ./cmd/academic -serve 127.0.0.1:8081` chưa?",
 		})
+		return
+	}
+	defer resp.Body.Close()
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(resp.StatusCode)
+	_, _ = io.Copy(w, resp.Body)
+}
+
+// catalog chuyển tiếp danh mục sinh viên/học phần từ Academic cho cổng đăng ký trên web.
+func (s *server) catalog(w http.ResponseWriter, r *http.Request) {
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, s.academicURL+"/api/catalog", nil)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	resp, err := s.client.Do(req)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "không gọi được Academic tại " + s.academicURL})
 		return
 	}
 	defer resp.Body.Close()

@@ -300,7 +300,7 @@ sequenceDiagram
 
 ### 3.10. Trang web demo và Dashboard API
 
-Trang web chỉ là **công cụ trình diễn**; luồng tích hợp chạy đầy đủ khi không có nó.
+Trang web chỉ là **công cụ trình diễn**; luồng tích hợp chạy đầy đủ khi không có nó. Nghiệp vụ được trình bày như một luồng mua hàng quen thuộc: danh mục học phần có giá (lấy từ Academic) → bấm “Đăng ký” (Academic phát một sự kiện) → Finance lập hóa đơn → Notification gửi thông báo → Analytics cập nhật thống kê → Game đưa nhân vật lên bản đồ trường. Phía trên là sơ đồ luồng: mỗi bản ghi mới trong nhật ký tạo một “gói tin” chạy trên đúng đường đi của thông điệp (Academic → broker → consumer, hoặc vào dead-letter), nên người xem thấy được cơ chế chia tải, phát bản sao và giao lại.
 
 ```mermaid
 flowchart LR
@@ -412,11 +412,11 @@ Tóm tắt lần chạy: [summary.txt](evidence/summary.txt).
 - Bảng thống kê Analytics khi dừng: [analytics-thong-ke.txt](evidence/analytics-thong-ke.txt).
 - Ảnh trang web khi chạy thật:
 
-**Tổng quan** – kịch bản (i): ô `005` của W1 bị gạch (W1 bị kill khi chưa ack), W2 xử lý lại với nhãn `↻`; kịch bản (ii): bốn subscriber đều ✓.
+**Kịch bản (i), W1 bị giết khi đang xử lý** – bấm “12 lượt” rồi kill W1 khi nó đang giữ `ev-9a40-002`. Sơ đồ đánh dấu W1 “dừng? #002 đã chuyển cho W2”, queue `finance.work` còn 2 consumer; bảng bằng chứng gạch ô `002` của W1 và hiện `↻ 002` ở làn W2; kết luận 12/12 xử lý đúng một lần.
 
 ![Trang web – tổng quan](images/web-tong-quan.png)
 
-**Notification đang tắt** – thẻ Notification chuyển màu, `Ready = 6`, cột notification toàn ✗; bản đồ trường của Game subscriber ở phía dưới.
+**Kịch bản (ii), Notification đang tắt** – ô Notification nét đứt “ĐANG TẮT”, queue `notification.events` giữ 12 thông điệp với 0 consumer, hộp thư báo 12 thông báo đang chờ; Finance, Analytics, Game vẫn xử lý bình thường. Bật lại, Notification nhận đủ.
 
 ![Trang web – Notification tạm tắt](images/web-notification-tat.png)
 
