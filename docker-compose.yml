@@ -1,0 +1,24 @@
+services:
+  rabbitmq:
+    image: rabbitmq:4.1-management
+    container_name: nmtht-rabbitmq
+    # Giữ tên node cố định: dữ liệu RabbitMQ trong volume gắn với tên node,
+    # đổi hostname thì queue và message cũ không được nạp lại.
+    hostname: nmtht-rabbitmq
+    ports:
+      - "127.0.0.1:5672:5672"     # AMQP – các service Go kết nối vào đây
+      - "127.0.0.1:15672:15672"   # Trang quản trị: http://localhost:15672
+    environment:
+      RABBITMQ_DEFAULT_USER: demo
+      RABBITMQ_DEFAULT_PASS: demo
+    volumes:
+      # Queue durable + message persistent được ghi vào đây, còn nguyên khi khởi động lại broker.
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  rabbitmq-data:

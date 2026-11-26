@@ -1,0 +1,13 @@
+student_id,full_name,course_id,course_name,credits,semester
+SV001,Nguyễn Văn An,TH301,Nhập môn tích hợp hệ thống,3,2026-1
+SV002,Trần Thị Bình,TH301,Nhập môn tích hợp hệ thống,3,2026-1
+SV003,Lê Văn Cường,CS201,Cơ sở dữ liệu,3,2026-1
+SV004,Phạm Thị Dung,CS102,Lập trình Go,2,2026-1
+SV005,Hoàng Văn Em,MA101,Giải tích 1,4,2026-1
+SV006,Vũ Thị Phương,TH301,Nhập môn tích hợp hệ thống,3,2026-1
+SV007,Đặng Văn Giang,CS201,Cơ sở dữ liệu,3,2026-1
+SV008,Bùi Thị Hà,CS102,Lập trình Go,2,2026-1
+SV009,Đỗ Văn Hùng,MA101,Giải tích 1,4,2026-1
+SV010,Ngô Thị Lan,TH301,Nhập môn tích hợp hệ thống,3,2026-1
+SV011,Dương Văn Minh,CS201,Cơ sở dữ liệu,3,2026-1
+SV012,Lý Thị Ngọc,CS102,Lập trình Go,2,2026-1
