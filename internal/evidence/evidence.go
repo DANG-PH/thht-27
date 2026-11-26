@@ -43,6 +43,8 @@ type Record struct {
 	Status      Status    `json:"status"`
 	Redelivered bool      `json:"redelivered,omitempty"` // RabbitMQ giao lại (lần trước chưa được ack)
 	Note        string    `json:"note,omitempty"`
+	StudentID   string    `json:"student_id,omitempty"` // để trang web hiển thị; rỗng nếu thông điệp hỏng
+	CourseID    string    `json:"course_id,omitempty"`
 }
 
 // Dir là thư mục chứa log, đổi bằng biến môi trường LOG_DIR.

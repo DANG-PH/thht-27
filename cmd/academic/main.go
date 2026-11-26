@@ -1,34 +1,31 @@
 // Academic – ứng dụng phát sự kiện student.enrolled (Producer).
 //
-// Academic chỉ biết NƠI GỬI (queue finance.work hoặc exchange academic.events),
-// không biết phía sau có bao nhiêu worker hay subscriber.
+// Hai cách chạy:
+//
+//	go run ./cmd/academic -mode work -n 12          gửi một lần rồi thoát (dùng trong terminal)
+//	go run ./cmd/academic -serve 127.0.0.1:8081     chạy như dịch vụ HTTP để trang web bấm nút gửi
+//
+// Nghiệp vụ gửi nằm ở internal/academic, dùng chung cho cả hai cách.
 package main
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/csv"
-	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
-	"fmt"
+	"io"
 	"log"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
-	"nmtht/chude07/internal/event"
+	"nmtht/chude07/internal/academic"
 	"nmtht/chude07/internal/evidence"
 	"nmtht/chude07/internal/mq"
 )
-
-type enrollment struct {
-	StudentID, FullName, CourseID, CourseName, Semester string
-	Credits                                             int
-}
 
 func main() {
 	mode := flag.String("mode", evidence.ScenarioPubSub,
@@ -37,28 +34,15 @@ func main() {
 	bad := flag.Bool("bad", false, "gửi thêm 1 thông điệp sai hợp đồng để thử tình huống lỗi")
 	dataPath := flag.String("data", "data/enrollments.csv", "file CSV dữ liệu đăng ký giả lập")
 	interval := flag.Duration("interval", 0, "nghỉ giữa 2 lần gửi, vd 300ms")
+	serve := flag.String("serve", "", "chạy như dịch vụ HTTP tại địa chỉ này, vd 127.0.0.1:8081")
 	flag.Parse()
 
 	log.SetFlags(log.Ltime | log.Lmicroseconds)
 	log.SetPrefix("[academic] ")
 
-	var exchange, routingKey string
-	switch *mode {
-	case evidence.ScenarioWork:
-		exchange, routingKey = "", mq.WorkQueue // default exchange: routing key chính là tên queue đích
-	case evidence.ScenarioPubSub:
-		exchange, routingKey = mq.EventsExchange, event.TypeStudentEnrolled
-	default:
-		log.Fatalf("-mode phải là %q hoặc %q", evidence.ScenarioWork, evidence.ScenarioPubSub)
-	}
-
-	rows, err := loadEnrollments(*dataPath)
+	rows, err := academic.LoadEnrollments(*dataPath)
 	if err != nil {
 		log.Fatal(err)
-	}
-	count := *n
-	if count <= 0 {
-		count = len(rows)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -74,115 +58,77 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if *mode == evidence.ScenarioWork {
-		// Khai báo queue trước khi gửi: worker chưa bật thì thông điệp vẫn nằm chờ trong queue.
-		err = mq.DeclareQueue(pub.Channel(), mq.WorkQueue)
-	} else {
-		// Chỉ khai báo exchange. Queue của từng subscriber do subscriber tự tạo.
-		err = mq.DeclareEventsExchange(pub.Channel())
-	}
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	evlog, err := evidence.Open("academic")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer evlog.Close()
 
-	run := newRunID()
-	target := "queue " + routingKey
-	if exchange != "" {
-		target = "exchange " + exchange + " (routing key " + routingKey + ")"
-	}
-	log.Printf("lần gửi %s: %d sự kiện → %s", run, count, target)
-
-	send := func(id string, body []byte, note string) {
-		if err := pub.Publish(ctx, exchange, routingKey, event.TypeStudentEnrolled, id, body); err != nil {
-			log.Fatalf("gửi %s thất bại: %v", id, err)
-		}
-		evlog.Write(evidence.Record{
-			Service: "academic", Instance: "academic", Scenario: *mode,
-			EventID: id, Status: evidence.Published, Note: note,
-		})
+	sender, err := academic.NewSender(pub, evlog, rows)
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	for i := 0; i < count; i++ {
-		row := rows[i%len(rows)]
-		ev := event.StudentEnrolled{
-			EventID:    fmt.Sprintf("ev-%s-%03d", run, i+1),
-			EventType:  event.TypeStudentEnrolled,
-			OccurredAt: time.Now().UTC(),
-			StudentID:  row.StudentID,
-			FullName:   row.FullName,
-			CourseID:   row.CourseID,
-			CourseName: row.CourseName,
-			Credits:    row.Credits,
-			Semester:   row.Semester,
-		}
-		body, err := json.Marshal(ev)
-		if err != nil {
+	if *serve != "" {
+		if err := serveHTTP(ctx, *serve, sender); err != nil {
 			log.Fatal(err)
 		}
-		send(ev.EventID, body, "")
-		log.Printf("↑ %s  SV %s  %s (%d TC) – broker đã xác nhận", ev.EventID, ev.StudentID, ev.CourseID, ev.Credits)
-
-		if *interval > 0 {
-			select {
-			case <-ctx.Done():
-				log.Fatal("dừng giữa chừng")
-			case <-time.After(*interval):
-			}
-		}
+		return
 	}
 
-	if *bad {
-		id := fmt.Sprintf("ev-%s-bad", run)
-		// Thiếu student_id, course_id và số tín chỉ âm: vi phạm hợp đồng thông điệp.
-		body := []byte(fmt.Sprintf(`{"event_id":%q,"event_type":%q,"credits":-1}`, id, event.TypeStudentEnrolled))
-		send(id, body, evidence.NoteMalformed)
-		log.Printf("↑ %s  (thông điệp SAI hợp đồng – để kiểm thử tình huống lỗi)", id)
+	res, err := sender.Send(ctx, academic.Request{Mode: *mode, N: *n, Bad: *bad, Interval: *interval})
+	if err != nil {
+		log.Fatal(err)
 	}
-
-	log.Printf("xong. Đối chiếu: go run ./cmd/verify -scenario %s -run %s", *mode, run)
+	log.Printf("xong. Đối chiếu: go run ./cmd/verify -scenario %s -run %s", res.Mode, res.Run)
 }
 
-func loadEnrollments(path string) ([]enrollment, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("mở dữ liệu giả lập (chạy lệnh từ thư mục gốc dự án): %w", err)
-	}
-	defer f.Close()
+// serveHTTP mở API POST /api/enroll, body JSON {"mode":"work|pubsub","n":5,"bad":false}.
+func serveHTTP(ctx context.Context, addr string, sender *academic.Sender) error {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/enroll", func(w http.ResponseWriter, r *http.Request) {
+		var req academic.Request
+		if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "body JSON không hợp lệ: " + err.Error()})
+			return
+		}
+		res, err := sender.Send(r.Context(), req)
+		switch {
+		case errors.Is(err, academic.ErrInvalidRequest):
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		case err != nil:
+			// Lỗi phía broker (mất kết nối...). Trả kèm các sự kiện đã gửi được trước khi lỗi.
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": err.Error(), "partial": res})
+		default:
+			writeJSON(w, http.StatusOK, res)
+		}
+	})
+	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	})
 
-	rows, err := csv.NewReader(f).ReadAll()
-	if err != nil {
-		return nil, fmt.Errorf("đọc %s: %w", path, err)
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		BaseContext:       func(net.Listener) context.Context { return ctx },
 	}
-	if len(rows) < 2 {
-		return nil, fmt.Errorf("%s không có dữ liệu", path)
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(shutdownCtx)
+	}()
+
+	log.Printf("chế độ HTTP: POST http://%s/api/enroll  body {\"mode\":\"work|pubsub\",\"n\":5,\"bad\":false}", addr)
+	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return err
 	}
-	var out []enrollment
-	for i, r := range rows[1:] { // bỏ dòng tiêu đề
-		if len(r) != 6 {
-			return nil, fmt.Errorf("%s dòng %d: cần 6 cột, có %d", path, i+2, len(r))
-		}
-		credits, err := strconv.Atoi(strings.TrimSpace(r[4]))
-		if err != nil {
-			return nil, fmt.Errorf("%s dòng %d: credits không phải số: %w", path, i+2, err)
-		}
-		out = append(out, enrollment{
-			StudentID: r[0], FullName: r[1], CourseID: r[2], CourseName: r[3], Credits: credits, Semester: r[5],
-		})
-	}
-	return out, nil
+	return nil
 }
 
-// newRunID tạo mã 4 ký tự hex cho mỗi lần chạy, ghép vào event ID: ev-<run>-<số thứ tự>.
-func newRunID() string {
-	b := make([]byte, 2)
-	if _, err := rand.Read(b); err != nil {
-		return strconv.FormatInt(time.Now().Unix()%0xffff, 16)
-	}
-	return hex.EncodeToString(b)
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(v)
 }

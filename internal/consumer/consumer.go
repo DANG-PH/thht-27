@@ -150,6 +150,7 @@ func (w *worker) process(d amqp.Delivery) {
 		w.evlog.Write(evidence.Record{
 			Service: w.opts.Service, Instance: w.opts.Instance, Scenario: w.scenario, Queue: w.opts.Queue,
 			EventID: id, Status: s, Redelivered: d.Redelivered, Note: note,
+			StudentID: ev.StudentID, CourseID: ev.CourseID,
 		})
 	}
 
