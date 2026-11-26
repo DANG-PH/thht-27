@@ -1,0 +1,40 @@
+# T6 – Chạy thêm cmd/game-sub (subscriber thứ tư), gửi 3 sự kiện
+# Chạy lúc: 2026-11-26 21:35:04 +07
+
+$ go run ./cmd/verify -scenario pubsub -run 4e4c
+KỊCH BẢN (ii) – PUBLISH/SUBSCRIBE – lần gửi 4e4c: 3 sự kiện hợp lệ, 0 sai hợp đồng
+
+EVENT ID     analytics  finance  game  notification
+ev-4e4c-001  ✓          ✓        ✓     ✓
+ev-4e4c-002  ✓          ✓        ✓     ✓
+ev-4e4c-003  ✓          ✓        ✓     ✓
+
+Số sự kiện mỗi subscriber đã xử lý:
+  analytics      3/3
+  finance        3/3
+  game           3/3
+  notification   3/3
+
+KẾT LUẬN: ĐẠT – mỗi subscriber nhận đủ một bản sao của từng sự kiện.
+
+--- Lần gửi TRƯỚC khi có Game (a969): cột game phải là ✗ vì lúc đó chưa có queue game.events
+$ go run ./cmd/verify -scenario pubsub -run a969
+KỊCH BẢN (ii) – PUBLISH/SUBSCRIBE – lần gửi a969: 5 sự kiện hợp lệ, 0 sai hợp đồng
+
+EVENT ID     analytics  finance  game  notification
+ev-a969-001  ✓          ✓        ✗     ✓
+ev-a969-002  ✓          ✓        ✗     ✓
+ev-a969-003  ✓          ✓        ✗     ✓
+ev-a969-004  ✓          ✓        ✗     ✓
+ev-a969-005  ✓          ✓        ✗     ✓
+
+Số sự kiện mỗi subscriber đã xử lý:
+  analytics      5/5
+  finance        5/5
+  game           0/5
+  notification   5/5
+
+KẾT LUẬN: CÓ Ô ✗. Hai khả năng:
+  - subscriber đang tắt: queue riêng của nó vẫn giữ thông điệp, bật lại sẽ nhận đủ;
+  - subscriber được thêm SAU lần gửi này: lúc publish chưa có queue của nó nên không có bản sao (đúng thiết kế Pub/Sub).
+(mã thoát 1 – 1 là đúng mong đợi)

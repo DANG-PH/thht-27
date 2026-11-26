@@ -1,0 +1,48 @@
+[analytics] 21:34:55.103646 sẵn sàng – queue riêng "analytics.events" ← exchange "academic.events" (key "student.enrolled"), ack thủ công (Ctrl+C để dừng)
+[analytics] 21:34:58.650885 → nhận ev-5d5e-001: SV SV001, học phần TH301
+[analytics] 21:34:58.651013   thống kê: TH301 có 1 lượt (3 TC) | tổng 1 lượt
+[analytics] 21:34:58.651112 ✓ xong ev-5d5e-001 (đã ack)
+[analytics] 21:34:58.651881 → nhận ev-5d5e-002: SV SV002, học phần TH301
+[analytics] 21:34:58.651969   thống kê: TH301 có 2 lượt (6 TC) | tổng 2 lượt
+[analytics] 21:34:58.652050 ✓ xong ev-5d5e-002 (đã ack)
+[analytics] 21:34:58.654040 → nhận ev-5d5e-003: SV SV003, học phần CS201
+[analytics] 21:34:58.654124   thống kê: CS201 có 1 lượt (3 TC) | tổng 3 lượt
+[analytics] 21:34:58.654201 ✓ xong ev-5d5e-003 (đã ack)
+[analytics] 21:34:58.655523 → nhận ev-5d5e-004: SV SV004, học phần CS102
+[analytics] 21:34:58.655577   thống kê: CS102 có 1 lượt (2 TC) | tổng 4 lượt
+[analytics] 21:34:58.655686 ✓ xong ev-5d5e-004 (đã ack)
+[analytics] 21:34:58.657736 → nhận ev-5d5e-005: SV SV005, học phần MA101
+[analytics] 21:34:58.657790   thống kê: MA101 có 1 lượt (4 TC) | tổng 5 lượt
+[analytics] 21:34:58.658556 ✓ xong ev-5d5e-005 (đã ack)
+[analytics] 21:35:00.369828 → nhận ev-a969-001: SV SV001, học phần TH301
+[analytics] 21:35:00.369876   thống kê: TH301 có 3 lượt (9 TC) | tổng 6 lượt
+[analytics] 21:35:00.369962 ✓ xong ev-a969-001 (đã ack)
+[analytics] 21:35:00.371295 → nhận ev-a969-002: SV SV002, học phần TH301
+[analytics] 21:35:00.371343   thống kê: TH301 có 4 lượt (12 TC) | tổng 7 lượt
+[analytics] 21:35:00.371418 ✓ xong ev-a969-002 (đã ack)
+[analytics] 21:35:00.372760 → nhận ev-a969-003: SV SV003, học phần CS201
+[analytics] 21:35:00.372809   thống kê: CS201 có 2 lượt (6 TC) | tổng 8 lượt
+[analytics] 21:35:00.372877 ✓ xong ev-a969-003 (đã ack)
+[analytics] 21:35:00.374142 → nhận ev-a969-004: SV SV004, học phần CS102
+[analytics] 21:35:00.374189   thống kê: CS102 có 2 lượt (4 TC) | tổng 9 lượt
+[analytics] 21:35:00.374263 ✓ xong ev-a969-004 (đã ack)
+[analytics] 21:35:00.375439 → nhận ev-a969-005: SV SV005, học phần MA101
+[analytics] 21:35:00.375516   thống kê: MA101 có 2 lượt (8 TC) | tổng 10 lượt
+[analytics] 21:35:00.375603 ✓ xong ev-a969-005 (đã ack)
+[analytics] 21:35:05.297562 → nhận ev-4e4c-001: SV SV001, học phần TH301
+[analytics] 21:35:05.297604   thống kê: TH301 có 5 lượt (15 TC) | tổng 11 lượt
+[analytics] 21:35:05.297664 ✓ xong ev-4e4c-001 (đã ack)
+[analytics] 21:35:05.298641 → nhận ev-4e4c-002: SV SV002, học phần TH301
+[analytics] 21:35:05.298708   thống kê: TH301 có 6 lượt (18 TC) | tổng 12 lượt
+[analytics] 21:35:05.298753 ✓ xong ev-4e4c-002 (đã ack)
+[analytics] 21:35:05.299534 → nhận ev-4e4c-003: SV SV003, học phần CS201
+[analytics] 21:35:05.299566   thống kê: CS201 có 3 lượt (9 TC) | tổng 13 lượt
+[analytics] 21:35:05.299608 ✓ xong ev-4e4c-003 (đã ack)
+[analytics] 21:35:05.849573 dừng consumer
+
+THỐNG KÊ ĐĂNG KÝ (tổng 13 lượt)
+HỌC PHẦN  TÊN                         SỐ LƯỢT  TỔNG TÍN CHỈ
+CS102     Lập trình Go                2        4
+CS201     Cơ sở dữ liệu               3        9
+MA101     Giải tích 1                 2        8
+TH301     Nhập môn tích hợp hệ thống  6        18

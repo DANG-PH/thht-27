@@ -1,0 +1,16 @@
+# Kiểm thử đơn vị: go test ./...
+# Chạy lúc: 2026-11-26 21:35:05 +07
+
+?   	nmtht/chude07/cmd/academic	[no test files]
+?   	nmtht/chude07/cmd/analytics-sub	[no test files]
+?   	nmtht/chude07/cmd/finance-sub	[no test files]
+?   	nmtht/chude07/cmd/finance-worker	[no test files]
+?   	nmtht/chude07/cmd/game-sub	[no test files]
+?   	nmtht/chude07/cmd/notification-sub	[no test files]
+?   	nmtht/chude07/internal/academic	[no test files]
+?   	nmtht/chude07/internal/consumer	[no test files]
+?   	nmtht/chude07/internal/evidence	[no test files]
+?   	nmtht/chude07/internal/mq	[no test files]
+ok  	nmtht/chude07/cmd/dashboard	(cached)
+ok  	nmtht/chude07/cmd/verify	(cached)
+ok  	nmtht/chude07/internal/event	(cached)

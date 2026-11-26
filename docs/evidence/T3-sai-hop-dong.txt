@@ -1,0 +1,31 @@
+# T3 – Gửi 3 sự kiện hợp lệ và 1 thông điệp sai hợp đồng (-bad)
+# Chạy lúc: 2026-11-26 21:34:22 +07
+
+$ go run ./cmd/verify -scenario work -run 14e7
+KỊCH BẢN (i) – MESSAGE QUEUE – lần gửi 14e7: 3 sự kiện hợp lệ, 1 sai hợp đồng
+
+EVENT ID     XỬ LÝ XONG BỞI  DIỄN BIẾN
+ev-14e7-001  W2              W2:received → W2:processed
+ev-14e7-002  W2              W2:received → W2:processed
+ev-14e7-003  W2              W2:received → W2:processed
+
+Phân tải:
+  W2     3 sự kiện
+
+Xử lý thành công đúng 1 lần: 3/3
+Chưa được xử lý: –
+Xử lý nhiều hơn 1 lần: –
+Được RabbitMQ giao lại: –
+Thông điệp sai hợp đồng ev-14e7-bad: W2:rejected (kỳ vọng: rejected → academic.dead-letter)
+
+KẾT LUẬN: ĐẠT – mỗi thông điệp được đúng một worker xử lý thành công.
+
+--- Số thông điệp trong các queue (academic.dead-letter phải có 1):
+name                  messages_ready  messages_unacknowledged  consumers
+academic.dead-letter  1               0                        0
+finance.work          0               0                        1
+
+--- Nội dung thông điệp trong academic.dead-letter (đọc qua Management API, trả lại queue sau khi đọc):
+message_id : ev-14e7-bad
+payload    : {"event_id":"ev-14e7-bad","event_type":"student.enrolled","credits":-1}
+x-death    : queue=finance.work reason=rejected count=1

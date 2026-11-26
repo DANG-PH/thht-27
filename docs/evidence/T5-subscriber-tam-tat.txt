@@ -1,0 +1,27 @@
+# T5 – Tắt Notification, gửi 5 sự kiện, rồi bật lại
+# Chạy lúc: 2026-11-26 21:35:00 +07
+
+--- Khi Notification đang tắt (notification.events phải có 5 thông điệp Ready):
+name                  messages_ready  messages_unacknowledged  consumers
+academic.dead-letter  1               0                        0
+notification.events   5               0                        0
+finance.work          0               0                        0
+finance.events        0               0                        1
+analytics.events      0               0                        1
+
+$ go run ./cmd/verify -scenario pubsub -run a969
+KỊCH BẢN (ii) – PUBLISH/SUBSCRIBE – lần gửi a969: 5 sự kiện hợp lệ, 0 sai hợp đồng
+
+EVENT ID     analytics  finance  notification
+ev-a969-001  ✓          ✓        ✓
+ev-a969-002  ✓          ✓        ✓
+ev-a969-003  ✓          ✓        ✓
+ev-a969-004  ✓          ✓        ✓
+ev-a969-005  ✓          ✓        ✓
+
+Số sự kiện mỗi subscriber đã xử lý:
+  analytics      5/5
+  finance        5/5
+  notification   5/5
+
+KẾT LUẬN: ĐẠT – mỗi subscriber nhận đủ một bản sao của từng sự kiện.

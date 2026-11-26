@@ -1,0 +1,32 @@
+# T7 – Gửi 5 sự kiện khi chưa có worker; T8 – khởi động lại RabbitMQ trước khi bật worker
+# Chạy lúc: 2026-11-26 21:34:27 +07
+
+--- Sau khi gửi, chưa có worker nào (finance.work phải có 5 thông điệp Ready):
+name                  messages_ready  messages_unacknowledged  consumers
+academic.dead-letter  1               0                        0
+finance.work          5               0                        0
+
+--- Sau khi khởi động lại RabbitMQ (vẫn phải còn 5):
+name                  messages_ready  messages_unacknowledged  consumers
+academic.dead-letter  1               0                        0
+finance.work          5               0                        0
+
+$ go run ./cmd/verify -scenario work -run fc68
+KỊCH BẢN (i) – MESSAGE QUEUE – lần gửi fc68: 5 sự kiện hợp lệ, 0 sai hợp đồng
+
+EVENT ID     XỬ LÝ XONG BỞI  DIỄN BIẾN
+ev-fc68-001  W1              W1:received → W1:processed
+ev-fc68-002  W1              W1:received → W1:processed
+ev-fc68-003  W1              W1:received → W1:processed
+ev-fc68-004  W1              W1:received → W1:processed
+ev-fc68-005  W1              W1:received → W1:processed
+
+Phân tải:
+  W1     5 sự kiện
+
+Xử lý thành công đúng 1 lần: 5/5
+Chưa được xử lý: –
+Xử lý nhiều hơn 1 lần: –
+Được RabbitMQ giao lại: –
+
+KẾT LUẬN: ĐẠT – mỗi thông điệp được đúng một worker xử lý thành công.

@@ -7,8 +7,8 @@
 | Thành viên | Mã sinh viên | Vai trò chính |
 |---|---|---|
 | [Họ tên thành viên 1] | [MSSV] | Hạ tầng RabbitMQ, thư viện dùng chung, Academic, Finance Worker, công cụ đối chiếu |
-| [Họ tên thành viên 2] | [MSSV] | Notification subscriber, kiểm thử Pub/Sub, phần lý thuyết |
-| [Họ tên thành viên 3] | [MSSV] | Analytics subscriber, ma trận kiểm thử, minh chứng, hướng dẫn chạy lại |
+| [Họ tên thành viên 2] | [MSSV] | Các subscriber kịch bản (ii), trang web demo, phần lý thuyết |
+| [Họ tên thành viên 3] | [MSSV] | Kịch bản kiểm thử T1–T9, minh chứng, hướng dẫn cài đặt và chạy lại |
 
 Mã nguồn: <https://github.com/DANG-PH/thht-27>
 
@@ -149,12 +149,16 @@ Với ack thủ công, RabbitMQ bảo đảm mỗi thông điệp được giao 
 | Academic | Producer: đọc dữ liệu giả lập, phát `student.enrolled` | `cmd/academic` | Hoàn thành |
 | Finance Worker (W1, W2, W3) | Consumer kịch bản (i): lập khoản học phí | `cmd/finance-worker` | Hoàn thành |
 | Finance | Subscriber kịch bản (ii): ghi nhận nghĩa vụ học phí | `cmd/finance-sub` | Hoàn thành |
-| Notification | Subscriber kịch bản (ii): thông báo cho sinh viên | `cmd/notification-sub` | Đang thực hiện |
-| Analytics | Subscriber kịch bản (ii): thống kê lượt đăng ký theo học phần | `cmd/analytics-sub` | Đang thực hiện |
+| Notification | Subscriber kịch bản (ii): thông báo cho sinh viên (giả lập) | `cmd/notification-sub` | Hoàn thành |
+| Analytics | Subscriber kịch bản (ii): thống kê lượt đăng ký và tín chỉ theo học phần | `cmd/analytics-sub` | Hoàn thành |
+| Game | Subscriber thứ tư, thêm sau để chứng minh không phải sửa publisher | `cmd/game-sub` | Hoàn thành |
 | Thư viện dùng chung | Hợp đồng thông điệp, kết nối/khai báo, vòng lặp nhận có ack, nhật ký | `internal/*` | Hoàn thành |
 | Verify | Đối chiếu nhật ký, kết luận đạt/không đạt | `cmd/verify` | Hoàn thành |
+| Dashboard API | Dịch vụ chỉ đọc cho trang web: đẩy nhật ký và số liệu queue qua SSE, chuyển tiếp lệnh gửi | `cmd/dashboard` | Hoàn thành |
+| Trang web demo | Giao diện trình diễn hai kịch bản theo thời gian thực | `web/` | Hoàn thành |
+| Kịch bản kiểm thử | Chạy tự động T1–T9 với RabbitMQ thật, lưu minh chứng | `scripts/e2e.sh` | Hoàn thành |
 
-Ngôn ngữ: Go 1.22, thư viện `github.com/rabbitmq/amqp091-go` (thư viện AMQP chính thức cho Go).
+Ngôn ngữ và công cụ: Go 1.22 với thư viện `github.com/rabbitmq/amqp091-go` (thư viện AMQP chính thức cho Go); RabbitMQ 4.1; trang web Next.js 16 (React 19, TypeScript).
 
 ### 3.2. Kiến trúc kịch bản (i) – Message Queue
 
@@ -294,6 +298,32 @@ sequenceDiagram
 | Ghi nhật ký JSON Lines cho mọi bước | Có bằng chứng máy đọc được; `verify` đối chiếu tự động thay vì đếm tay |
 | Cấu hình địa chỉ broker qua biến môi trường `AMQP_URL` | Đổi môi trường không phải sửa mã |
 
+### 3.10. Trang web demo và Dashboard API
+
+Trang web chỉ là **công cụ trình diễn**; luồng tích hợp chạy đầy đủ khi không có nó.
+
+```mermaid
+flowchart LR
+    B["Trình duyệt (Next.js)"] -->|"GET /api/stream (SSE)"| D["Dashboard API (Go, chỉ đọc)"]
+    B -->|"POST /api/send"| D
+    D -->|"POST /api/enroll"| A["Academic (chạy với -serve)"]
+    A -->|"publish"| R[("RabbitMQ")]
+    R --> C["Workers / Subscribers"]
+    C -->|"ghi"| L["logs/*.jsonl"]
+    D -->|"đọc phần mới (như tail -f)"| L
+    D -->|"GET /api/queues mỗi giây"| M["RabbitMQ Management API"]
+```
+
+| Quyết định | Lý do |
+|---|---|
+| Trình duyệt **không** kết nối thẳng RabbitMQ | AMQP không dành cho trình duyệt; để lộ tài khoản broker ra phía người dùng là sai nguyên tắc bảo mật |
+| Dashboard **chỉ đọc** file log và Management API | Không phải sửa bất kỳ service nào để có giao diện; dữ liệu trên web cũng chính là dữ liệu `verify` dùng để kết luận |
+| Dashboard làm điểm vào duy nhất cho web (kể cả nút gửi, chuyển tiếp sang Academic) | Web chỉ cần biết một địa chỉ; Academic không phải mở CORS ra trình duyệt |
+| Đẩy dữ liệu bằng **Server-Sent Events** thay vì WebSocket | Dữ liệu chỉ đi một chiều server → trình duyệt; SSE đơn giản hơn và trình duyệt tự kết nối lại |
+| Trình duyệt đọc chậm thì Dashboard bỏ bớt khung dữ liệu | Một trình duyệt chậm không được làm treo Dashboard; khi kết nối lại, trình duyệt nhận lại toàn bộ lịch sử |
+
+Giới hạn: Dashboard đọc file log trên cùng máy, nên chỉ phù hợp khi mọi service chạy trên một máy như trong demo.
+
 ---
 
 ## 4. Cài đặt và chạy lại demo
@@ -301,21 +331,21 @@ sequenceDiagram
 Hướng dẫn chi tiết từng bước nằm trong [README.md](../README.md). Tóm tắt:
 
 ```bash
-docker compose up -d                          # RabbitMQ, trang quản trị http://localhost:15672 (demo/demo)
+docker compose up -d --wait                   # RabbitMQ, trang quản trị http://localhost:15672 (demo/demo)
 go test ./...                                 # kiểm thử đơn vị
+scripts/e2e.sh                                # chạy lại toàn bộ kiểm thử tích hợp T1–T9, lưu vào docs/evidence/
 
-# Kịch bản (i): 3 terminal chạy worker, 1 terminal gửi
+# Trình diễn bằng web
+scripts/start-all.sh                          # Academic (HTTP), Dashboard API, 3 worker, 4 subscriber
+cd web && npm install && npm run dev          # http://localhost:3000
+
+# Hoặc trình diễn bằng terminal (mọi hệ điều hành)
 go run ./cmd/finance-worker -id W1            # tương tự W2, W3
 go run ./cmd/academic -mode work
 go run ./cmd/verify -scenario work
-
-# Kịch bản (ii): chạy các subscriber, rồi gửi
-go run ./cmd/finance-sub
-go run ./cmd/academic -mode pubsub -n 5
-go run ./cmd/verify -scenario pubsub
 ```
 
-Yêu cầu: Docker, Go ≥ 1.22. Mọi lệnh chạy từ thư mục gốc dự án. Xóa sạch để chạy lại: `docker compose down -v` và `rm -rf logs`.
+Yêu cầu: Docker, Go ≥ 1.22, Node.js ≥ 20.9 (cho web). Mọi lệnh chạy từ thư mục gốc dự án. Xóa sạch để chạy lại: `docker compose down -v` và `rm -rf logs`.
 
 ### Cách thu thập minh chứng
 
@@ -323,6 +353,8 @@ Yêu cầu: Docker, Go ≥ 1.22. Mọi lệnh chạy từ thư mục gốc dự 
 - **`logs/*.jsonl`:** mỗi tiến trình một file, ghi các trạng thái `published`, `received`, `processed`, `rejected`, `requeued`, `dead-lettered` kèm cờ `redelivered`.
 - **`cmd/verify`:** đọc toàn bộ nhật ký của một lần gửi, in bảng diễn biến từng sự kiện và kết luận.
 - **Trang quản trị RabbitMQ:** số thông điệp *Ready*/*Unacked* của từng queue, danh sách binding của exchange, nội dung thông điệp trong dead-letter queue.
+- **`scripts/e2e.sh`:** chạy tự động toàn bộ ca kiểm thử, lưu kết quả `verify`, số liệu queue lấy trực tiếp từ broker (`rabbitmqctl`) và log liên quan vào `docs/evidence/`.
+- **Trang web:** hiển thị cùng dữ liệu theo thời gian thực để trình diễn.
 
 ---
 
@@ -330,7 +362,7 @@ Yêu cầu: Docker, Go ≥ 1.22. Mọi lệnh chạy từ thư mục gốc dự 
 
 ### 5.1. Kiểm thử đơn vị
 
-Lệnh: `go test ./...` (đã chạy, **tất cả đạt**).
+Lệnh: `go test ./...` (đã chạy, **tất cả đạt** – [unit-tests.txt](evidence/unit-tests.txt)).
 
 | Mã | Gói | Nội dung kiểm tra |
 |---|---|---|
@@ -342,31 +374,45 @@ Lệnh: `go test ./...` (đã chạy, **tất cả đạt**).
 | U6 | `cmd/verify` | Tự chọn lần gửi gần nhất khi không chỉ định |
 | U7 | `cmd/verify` | Mọi subscriber nhận đủ bản sao → đạt; thiếu một bản sao → không đạt |
 | U8 | `cmd/verify` | Thông điệp sai hợp đồng không bị tính là "thiếu xử lý" |
+| U9 | `cmd/dashboard` | Chỉ đọc dòng log đã ghi trọn; tự đọc lại từ đầu khi thư mục log bị xóa |
 
 ### 5.2. Ma trận yêu cầu – kiểm thử tích hợp
 
-Các ca dưới đây chạy với RabbitMQ thật theo hướng dẫn trong README. Cột "Kết quả thực tế" điền sau khi chạy, kèm ảnh chụp ở mục 5.3.
+Các ca dưới đây chạy tự động bằng `scripts/e2e.sh` với RabbitMQ 4.1.8 thật, ngày 26/11/2026; **tất cả đạt**. Mỗi ca có một file minh chứng trong [docs/evidence/](evidence/).
 
 | Mã | Yêu cầu của đề | Các bước | Kết quả mong đợi | Kết quả thực tế |
 |---|---|---|---|---|
-| T1 | (i) Một queue, nhiều worker chia tải; mỗi thông điệp một worker xử lý | Chạy W1, W2, W3; `academic -mode work` (12 sự kiện); `verify -scenario work` | Mỗi worker khoảng 4 sự kiện; `12/12` xử lý đúng một lần; ĐẠT | *Chưa chạy* |
-| T2 | Tình huống lỗi: worker chết | W1 chạy với `-crash-on 2 -delay 3s`; W2, W3 bình thường; gửi 12 | Thông điệp của W1 được giao lại (`redelivered`); vẫn `12/12`; ĐẠT | *Chưa chạy* |
-| T3 | Tình huống lỗi: thông điệp sai hợp đồng | `academic -mode work -n 3 -bad` | `ev-…-bad` bị `rejected`; queue `academic.dead-letter` có 1 thông điệp | *Chưa chạy* |
-| T4 | (ii) Pub/Sub: mỗi subscriber một bản sao | Chạy Finance, Notification, Analytics; `academic -mode pubsub -n 5` | Cùng `event_id` có trong log cả ba bên; bảng `verify` toàn ✓ | *Chưa chạy* |
-| T5 | Subscriber nhận theo đăng ký của mình; subscriber tạm ngừng | Tắt Notification; gửi 5; xem `notification.events`; bật lại | `Ready = 5` khi tắt; bật lại nhận đủ 5; ĐẠT | *Chưa chạy* |
-| T6 | Thêm subscriber không sửa publisher | Tạo `cmd/audit-sub` từ mẫu; chạy; gửi 3; `git diff --stat -- cmd/academic internal/mq` | Subscriber mới nhận 3 sự kiện; diff rỗng; lần gửi trước đó hiện ✗ ở cột mới | *Chưa chạy* |
-| T7 | Gửi khi chưa có worker | Không chạy worker; gửi 5; bật W1 | Queue giữ 5 thông điệp; W1 nhận đủ | *Chưa chạy* |
-| T8 | Độ bền khi broker khởi động lại | Không chạy worker; gửi 5; `docker compose restart`; bật W1 | Sau restart queue vẫn có 5 thông điệp; W1 nhận đủ | *Chưa chạy* |
+| T1 | (i) Một queue, nhiều worker chia tải; mỗi thông điệp một worker xử lý | Chạy W1, W2, W3; gửi 12 sự kiện; `verify` | Mỗi worker khoảng 4 sự kiện; `12/12` xử lý đúng một lần | **ĐẠT** – mỗi worker 4 sự kiện, 12/12. [T1](evidence/T1-chia-tai.txt) |
+| T2 | Tình huống lỗi: worker chết | W1 chạy với `-crash-on 2 -delay 1s`; W2, W3 bình thường; gửi 12 | Thông điệp của W1 được giao lại; vẫn `12/12` | **ĐẠT** – W1 chết lúc 21:34:17,716 khi đang xử lý `ev-1a3f-004`; lúc 21:34:18,220 (sau khoảng 0,5 giây, khi W2 xong việc trước đó) W2 nhận lại với cờ `redelivered`; 12/12. [T2](evidence/T2-worker-chet.txt) |
+| T3 | Tình huống lỗi: thông điệp sai hợp đồng | Gửi 3 sự kiện hợp lệ + 1 thông điệp sai (`-bad`) | Thông điệp sai bị `rejected`; `academic.dead-letter` có 1 thông điệp | **ĐẠT** – 3/3 hợp lệ xử lý xong; dead-letter có 1 thông điệp, header `x-death`: queue `finance.work`, reason `rejected`. [T3](evidence/T3-sai-hop-dong.txt) |
+| T4 | (ii) Pub/Sub: mỗi subscriber một bản sao | Chạy Finance, Notification, Analytics; gửi 5 | Cùng `event_id` trong log cả ba bên; bảng `verify` toàn ✓ | **ĐẠT** – 5/5 ở cả ba subscriber; 3 binding `student.enrolled` trên `academic.events`. [T4](evidence/T4-pubsub.txt) |
+| T5 | Subscriber tạm ngừng | Tắt Notification; gửi 5; xem `notification.events`; bật lại | `Ready = 5` khi tắt; bật lại nhận đủ 5 | **ĐẠT** – `Ready = 5` khi tắt; bật lại nhận đủ, 5/5. [T5](evidence/T5-subscriber-tam-tat.txt) |
+| T6 | Thêm subscriber không sửa publisher | Chạy thêm `cmd/game-sub`; gửi 3; xem lại lần gửi trước | Game nhận 3 sự kiện mới; lần gửi trước hiện ✗ ở cột game | **ĐẠT** – 4 subscriber đều 3/3; lần gửi trước: game 0/5. Commit thêm `cmd/game-sub` không đổi file nào của Academic. [T6](evidence/T6-them-subscriber.txt) |
+| T7 | Gửi khi chưa có worker | Không chạy worker; gửi 5 | Queue giữ 5 thông điệp | **ĐẠT** – `finance.work` có `Ready = 5`, 0 consumer. [T7–T8](evidence/T7-T8-ben-vung.txt) |
+| T8 | Độ bền khi broker khởi động lại | Sau T7, khởi động lại RabbitMQ rồi mới bật W1 | Sau restart vẫn còn 5 thông điệp; W1 nhận đủ | **ĐẠT** – vẫn `Ready = 5` sau restart; W1 xử lý 5/5. [T7–T8](evidence/T7-T8-ben-vung.txt) |
+| T9 | (i) Thêm worker để chia tải | 12 sự kiện, mỗi sự kiện xử lý 500 ms; đo với 1 worker rồi 3 worker | 3 worker nhanh hơn rõ rệt | **ĐẠT** – 1 worker: 6,3 giây; 3 worker: 2,1 giây. [T9](evidence/T9-mo-rong.txt) |
+
+Tóm tắt lần chạy: [summary.txt](evidence/summary.txt).
 
 ### 5.3. Minh chứng
 
-*(Dán vào đây sau khi chạy: kết quả `verify` của T1–T6, ảnh trang quản trị RabbitMQ cho T2, T3, T5, T8, và ảnh trang Bindings của exchange `academic.events`.)*
+- Kết quả từng ca kiểm thử: các file trong [docs/evidence/](evidence/) (đầu ra `verify`, bảng queue lấy từ `rabbitmqctl`, log của tiến trình liên quan).
+- Bảng thống kê Analytics khi dừng: [analytics-thong-ke.txt](evidence/analytics-thong-ke.txt).
+- Ảnh trang web khi chạy thật:
+
+**Tổng quan** – kịch bản (i): ô `005` của W1 bị gạch (W1 bị kill khi chưa ack), W2 xử lý lại với nhãn `↻`; kịch bản (ii): bốn subscriber đều ✓.
+
+![Trang web – tổng quan](images/web-tong-quan.png)
+
+**Notification đang tắt** – thẻ Notification chuyển màu, `Ready = 6`, cột notification toàn ✗; bản đồ trường của Game subscriber ở phía dưới.
+
+![Trang web – Notification tạm tắt](images/web-notification-tat.png)
 
 ---
 
 ## 6. Nhận xét và thảo luận
 
-> Các nhận xét dưới đây dựa trên cơ chế đã thiết kế. Nhóm đối chiếu lại với kết quả thực tế ở mục 5 sau khi chạy kiểm thử.
+> Các nhận xét dưới đây đối chiếu với kết quả thực tế ở mục 5.
 
 ### 6.1. Cùng một broker, khác nhau ở topology
 
@@ -376,20 +422,30 @@ Message Queue và Pub/Sub trong RabbitMQ không phải hai sản phẩm khác nh
 
 Đề nêu điều kiện "trong điều kiện xử lý thành công" là chính xác. Với ack thủ công:
 
-- worker chết **trước khi xử lý xong**: thông điệp được giao lại, vẫn chỉ được xử lý thành công một lần (ca T2);
+- worker chết **trước khi xử lý xong**: thông điệp được giao lại, vẫn chỉ được xử lý thành công một lần. Ca T2 cho thấy đúng như vậy: `ev-1a3f-004` có diễn biến `W1:received → W2:received(giao lại) → W2:processed`, không mất và không trùng;
 - worker chết **sau khi xử lý xong nhưng trước khi gửi ack**: thông điệp cũng được giao lại và **bị xử lý hai lần**.
 
 Đây là bản chất *at-least-once*. Với Finance, xử lý trùng nghĩa là lập trùng khoản học phí, nên trong hệ thống thật cần **idempotent consumer**: lưu `event_id` đã xử lý (ví dụ khóa duy nhất trong cơ sở dữ liệu) và bỏ qua khi gặp lại.
 
 ### 6.3. Thứ tự xử lý không được bảo đảm khi có nhiều worker
 
-Các worker chạy song song với tốc độ khác nhau, và thông điệp được giao lại sẽ được xử lý sau các thông điệp gửi sau nó. Vì vậy sự kiện gửi trước chưa chắc được xử lý xong trước. Nếu nghiệp vụ cần thứ tự theo từng sinh viên, phải dùng một consumer cho mỗi nhóm khóa (ví dụ phân queue theo mã sinh viên) hoặc thiết kế xử lý không phụ thuộc thứ tự.
+Các worker chạy song song với tốc độ khác nhau, và thông điệp được giao lại sẽ được xử lý sau các thông điệp gửi sau nó. Vì vậy sự kiện gửi trước chưa chắc được xử lý xong trước. Nhật ký ca T2 ghi lại thứ tự hoàn thành thực tế:
+
+```
+001(W1) 002(W2) 003(W3) 005(W2) 006(W3) 004(W2) 007(W3) 008(W2) ...
+```
+
+Sự kiện `004` được gửi trước `005` và `006` nhưng hoàn thành sau cả hai, vì nó phải chờ được giao lại sau khi W1 chết. Nếu nghiệp vụ cần thứ tự theo từng sinh viên, phải dùng một consumer cho mỗi nhóm khóa (ví dụ phân queue theo mã sinh viên) hoặc thiết kế xử lý không phụ thuộc thứ tự.
 
 ### 6.4. Subscriber tham gia muộn không nhận được sự kiện cũ
 
-Exchange không lưu thông điệp; nó chỉ chép thông điệp vào các queue **đang tồn tại** tại thời điểm publish. Subscriber mới tạo queue sau đó chỉ nhận sự kiện từ lúc ấy trở đi (ca T6). Ngược lại, subscriber đã có queue mà tạm ngừng thì không mất gì, vì queue riêng của nó vẫn tích lũy thông điệp (ca T5). Nếu cần cho subscriber mới đọc lại lịch sử, phải dùng nền tảng lưu log như Kafka hoặc RabbitMQ Streams.
+Exchange không lưu thông điệp; nó chỉ chép thông điệp vào các queue **đang tồn tại** tại thời điểm publish. Subscriber mới tạo queue sau đó chỉ nhận sự kiện từ lúc ấy trở đi: ở ca T6, Game nhận đủ 3/3 sự kiện gửi sau khi nó chạy, nhưng 0/5 sự kiện của lần gửi ngay trước đó. Ngược lại, subscriber đã có queue mà tạm ngừng thì không mất gì, vì queue riêng của nó vẫn tích lũy thông điệp: ở ca T5, `notification.events` giữ 5 thông điệp trong lúc Notification tắt và giao đủ khi bật lại. Nếu cần cho subscriber mới đọc lại lịch sử, phải dùng nền tảng lưu log như Kafka hoặc RabbitMQ Streams.
 
-### 6.5. Mức độ giảm phụ thuộc đạt được
+### 6.5. Chia tải: thêm worker giảm thời gian xử lý
+
+Ở ca T9, với 12 sự kiện, mỗi sự kiện mất 500 ms: 1 worker cần 6,3 giây, 3 worker cần 2,1 giây, nhanh gấp khoảng 3 lần. Ở ca T1, prefetch = 1 làm việc chia đều 4/4/4. Phần không giảm được là thời gian gửi và thời gian chờ đối chiếu, nên nếu thêm nhiều worker hơn, mức tăng tốc sẽ thấp dần. Thêm worker cũng chỉ có ích khi phần chậm nằm ở consumer; ở demo này broker không phải nút thắt.
+
+### 6.6. Mức độ giảm phụ thuộc đạt được
 
 | Loại phụ thuộc | Gọi API trực tiếp | Qua RabbitMQ (demo) |
 |---|---|---|
@@ -418,9 +474,10 @@ Broker giảm nhiều loại phụ thuộc nhưng không xóa hết: hợp đồ
 
 ## 8. Công cụ hỗ trợ đã sử dụng
 
-- **Claude Code (Anthropic):** hỗ trợ dựng khung mã nguồn, viết kiểm thử đơn vị và bản nháp báo cáo. Nhóm đã tự chạy kiểm thử, đọc hiểu toàn bộ mã và chịu trách nhiệm về nội dung nộp.
+- **Claude Code (Anthropic):** hỗ trợ viết mã nguồn, kịch bản kiểm thử, trang web demo và bản nháp báo cáo. Nhóm đã tự chạy kiểm thử, đọc hiểu toàn bộ mã và chịu trách nhiệm về nội dung nộp.
 - **Docker / Docker Compose:** chạy RabbitMQ.
-- **Trang quản trị RabbitMQ:** quan sát queue, binding và thông điệp.
+- **Trang quản trị RabbitMQ và `rabbitmqctl`:** quan sát queue, binding và thông điệp.
+- **Next.js:** trang web trình diễn.
 
 ---
 

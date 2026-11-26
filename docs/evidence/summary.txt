@@ -1,0 +1,13 @@
+TÓM TẮT KIỂM THỬ – 2026-11-26 21:35:06 +07
+go version go1.22.2 linux/amd64, RabbitMQ 4.1.8
+
+T1   ĐẠT     Một queue, 3 worker: mỗi sự kiện đúng một worker xử lý (lần gửi 973a)
+T2   ĐẠT     Worker chết khi chưa ack: thông điệp được giao lại, vẫn xử lý đúng một lần (lần gửi 1a3f)
+T3   ĐẠT     Thông điệp sai hợp đồng bị từ chối, nằm trong academic.dead-letter (lần gửi 14e7)
+T7   ĐẠT     Gửi khi chưa có worker: thông điệp chờ trong queue (lần gửi fc68)
+T8   ĐẠT     RabbitMQ khởi động lại: 5 thông điệp còn nguyên, worker xử lý đủ (lần gửi fc68)
+T9   ĐẠT     Thêm worker giảm thời gian xử lý: 1 worker 6.3s, 3 worker 2.1s
+T4   ĐẠT     Pub/Sub: cùng một sự kiện tới cả ba subscriber (lần gửi 5d5e)
+T5   ĐẠT     Subscriber tạm tắt: queue riêng giữ 5 thông điệp, bật lại nhận đủ (lần gửi a969)
+T6   ĐẠT     Thêm subscriber mới không sửa publisher; nhận sự kiện mới, không nhận sự kiện cũ (lần gửi 4e4c)
+U    ĐẠT     go test ./... (hợp đồng thông điệp, verify, dashboard)

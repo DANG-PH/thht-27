@@ -1,0 +1,32 @@
+# T4 – Publish 5 sự kiện lên exchange academic.events, ba subscriber
+# Chạy lúc: 2026-11-26 21:34:55 +07
+
+$ go run ./cmd/verify -scenario pubsub -run 5d5e
+KỊCH BẢN (ii) – PUBLISH/SUBSCRIBE – lần gửi 5d5e: 5 sự kiện hợp lệ, 0 sai hợp đồng
+
+EVENT ID     analytics  finance  notification
+ev-5d5e-001  ✓          ✓        ✓
+ev-5d5e-002  ✓          ✓        ✓
+ev-5d5e-003  ✓          ✓        ✓
+ev-5d5e-004  ✓          ✓        ✓
+ev-5d5e-005  ✓          ✓        ✓
+
+Số sự kiện mỗi subscriber đã xử lý:
+  analytics      5/5
+  finance        5/5
+  notification   5/5
+
+KẾT LUẬN: ĐẠT – mỗi subscriber nhận đủ một bản sao của từng sự kiện.
+
+--- Cùng một event ID ev-5d5e-001 trong log của cả ba subscriber:
+[finance] 21:34:58.649735 → nhận ev-5d5e-001: SV SV001, học phần TH301
+[finance] 21:34:58.649969 ✓ xong ev-5d5e-001 (đã ack)
+[notification] 21:34:58.649568 → nhận ev-5d5e-001: SV SV001, học phần TH301
+[notification] 21:34:58.750200 ✓ xong ev-5d5e-001 (đã ack)
+[analytics] 21:34:58.650885 → nhận ev-5d5e-001: SV SV001, học phần TH301
+[analytics] 21:34:58.651112 ✓ xong ev-5d5e-001 (đã ack)
+
+--- Binding của exchange academic.events (mỗi subscriber tự đăng ký queue của mình):
+academic.events  analytics.events     student.enrolled
+academic.events  finance.events       student.enrolled
+academic.events  notification.events  student.enrolled

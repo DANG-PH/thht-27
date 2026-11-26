@@ -1,0 +1,61 @@
+# T9 – 12 sự kiện, mỗi sự kiện xử lý 500ms; đo từ lúc bắt đầu gửi tới khi verify ĐẠT
+# Chạy lúc: 2026-11-26 21:34:43 +07
+
+=== 1 worker
+$ go run ./cmd/verify -scenario work -run 718a
+KỊCH BẢN (i) – MESSAGE QUEUE – lần gửi 718a: 12 sự kiện hợp lệ, 0 sai hợp đồng
+
+EVENT ID     XỬ LÝ XONG BỞI  DIỄN BIẾN
+ev-718a-001  W1              W1:received → W1:processed
+ev-718a-002  W1              W1:received → W1:processed
+ev-718a-003  W1              W1:received → W1:processed
+ev-718a-004  W1              W1:received → W1:processed
+ev-718a-005  W1              W1:received → W1:processed
+ev-718a-006  W1              W1:received → W1:processed
+ev-718a-007  W1              W1:received → W1:processed
+ev-718a-008  W1              W1:received → W1:processed
+ev-718a-009  W1              W1:received → W1:processed
+ev-718a-010  W1              W1:received → W1:processed
+ev-718a-011  W1              W1:received → W1:processed
+ev-718a-012  W1              W1:received → W1:processed
+
+Phân tải:
+  W1     12 sự kiện
+
+Xử lý thành công đúng 1 lần: 12/12
+Chưa được xử lý: –
+Xử lý nhiều hơn 1 lần: –
+Được RabbitMQ giao lại: –
+
+KẾT LUẬN: ĐẠT – mỗi thông điệp được đúng một worker xử lý thành công.
+=== 3 worker
+$ go run ./cmd/verify -scenario work -run 70c0
+KỊCH BẢN (i) – MESSAGE QUEUE – lần gửi 70c0: 12 sự kiện hợp lệ, 0 sai hợp đồng
+
+EVENT ID     XỬ LÝ XONG BỞI  DIỄN BIẾN
+ev-70c0-001  W2              W2:received → W2:processed
+ev-70c0-002  W3              W3:received → W3:processed
+ev-70c0-003  W1              W1:received → W1:processed
+ev-70c0-004  W2              W2:received → W2:processed
+ev-70c0-005  W3              W3:received → W3:processed
+ev-70c0-006  W1              W1:received → W1:processed
+ev-70c0-007  W2              W2:received → W2:processed
+ev-70c0-008  W3              W3:received → W3:processed
+ev-70c0-009  W1              W1:received → W1:processed
+ev-70c0-010  W2              W2:received → W2:processed
+ev-70c0-011  W3              W3:received → W3:processed
+ev-70c0-012  W1              W1:received → W1:processed
+
+Phân tải:
+  W1     4 sự kiện
+  W2     4 sự kiện
+  W3     4 sự kiện
+
+Xử lý thành công đúng 1 lần: 12/12
+Chưa được xử lý: –
+Xử lý nhiều hơn 1 lần: –
+Được RabbitMQ giao lại: –
+
+KẾT LUẬN: ĐẠT – mỗi thông điệp được đúng một worker xử lý thành công.
+
+KẾT QUẢ ĐO: 1 worker = 6.3 giây, 3 worker = 2.1 giây

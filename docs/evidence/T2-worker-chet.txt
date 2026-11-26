@@ -1,0 +1,42 @@
+# T2 – W1 chạy với -crash-on 2: chết khi đang xử lý thông điệp thứ 2, chưa ack
+# Chạy lúc: 2026-11-26 21:34:14 +07
+
+$ go run ./cmd/verify -scenario work -run 1a3f
+KỊCH BẢN (i) – MESSAGE QUEUE – lần gửi 1a3f: 12 sự kiện hợp lệ, 0 sai hợp đồng
+
+EVENT ID     XỬ LÝ XONG BỞI  DIỄN BIẾN
+ev-1a3f-001  W1              W1:received → W1:processed
+ev-1a3f-002  W2              W2:received → W2:processed
+ev-1a3f-003  W3              W3:received → W3:processed
+ev-1a3f-004  W2              W1:received → W2:received(giao lại) → W2:processed(giao lại)
+ev-1a3f-005  W2              W2:received → W2:processed
+ev-1a3f-006  W3              W3:received → W3:processed
+ev-1a3f-007  W3              W3:received → W3:processed
+ev-1a3f-008  W2              W2:received → W2:processed
+ev-1a3f-009  W3              W3:received → W3:processed
+ev-1a3f-010  W2              W2:received → W2:processed
+ev-1a3f-011  W3              W3:received → W3:processed
+ev-1a3f-012  W2              W2:received → W2:processed
+
+Phân tải:
+  W1     1 sự kiện
+  W2     6 sự kiện
+  W3     5 sự kiện
+
+Xử lý thành công đúng 1 lần: 12/12
+Chưa được xử lý: –
+Xử lý nhiều hơn 1 lần: –
+Được RabbitMQ giao lại: ev-1a3f-004
+
+KẾT LUẬN: ĐẠT – mỗi thông điệp được đúng một worker xử lý thành công.
+
+--- Log của W1 (tiến trình chết giữa chừng):
+[W1] 21:34:14.893524 sẵn sàng – đọc chung queue "finance.work", prefetch=1, ack thủ công (Ctrl+C để dừng)
+[W1] 21:34:16.213473 → nhận ev-1a3f-001: SV SV001, học phần TH301
+[W1] 21:34:17.213680   tạo khoản học phí: SV SV001 – TH301, 3 TC × 450000 = 1350000 đ
+[W1] 21:34:17.213869 ✓ xong ev-1a3f-001 (đã ack)
+[W1] 21:34:17.215423 → nhận ev-1a3f-004: SV SV004, học phần CS102
+[W1] 21:34:17.715757 SỰ CỐ GIẢ LẬP: tiến trình chết khi đang xử lý ev-1a3f-004, chưa kịp ack
+
+--- Dòng [GIAO LẠI] ở W2/W3:
+[W2] 21:34:18.219529 → nhận ev-1a3f-004 [GIAO LẠI]: SV SV004, học phần CS102
